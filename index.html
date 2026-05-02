@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Expense Logger</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0f172a" />
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-2: #22c55e;
+    --danger: #f87171;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  body { padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); max-width: 720px; margin: 0 auto; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 4px 8px; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .iconbtn { background: var(--panel); border: 1px solid var(--border); color: var(--text); width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .panel h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input[type="text"], input[type="password"], input[type="url"], input[type="date"], select, textarea {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  button { background: var(--accent); color: #052838; border: 0; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.secondary { background: var(--panel-2); color: var(--text); }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 140px; }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 14px; padding: 28px 12px;
+    text-align: center; color: var(--muted); cursor: pointer;
+  }
+  .drop.has-image { padding: 8px; border-style: solid; }
+  .drop img { max-width: 100%; max-height: 360px; border-radius: 8px; display: block; margin: 0 auto; }
+  .tx { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); margin-top: 8px; cursor: pointer; }
+  .tx.selected { border-color: var(--accent); background: rgba(56,189,248,0.08); }
+  .tx input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-merchant { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx-meta { font-size: 12px; color: var(--muted); }
+  .tx-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .tx-amount.credit { color: var(--accent-2); }
+  .status { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+  .status.ok { background: rgba(34,197,94,0.12); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+  .status.err { background: rgba(248,113,113,0.12); color: #fca5a5; border: 1px solid rgba(248,113,113,0.3); }
+  .status.info { background: rgba(56,189,248,0.10); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.3); }
+  .hidden { display: none !important; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .summary { padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .summary strong { font-variant-numeric: tabular-nums; }
+  small.help { color: var(--muted); display: block; margin-top: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Expense Logger</h1>
+  <button id="settings-toggle" class="iconbtn" title="Settings">⚙</button>
+</header>
+
+<section id="settings" class="panel hidden">
+  <h2>Settings</h2>
+  <label>Gemini API key <small class="help">From aistudio.google.com → Get API key. Stored on this device only.</small></label>
+  <input id="cfg-gemini" type="password" autocomplete="off" placeholder="AIza..." />
+  <label>Apps Script Web App URL</label>
+  <input id="cfg-url" type="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec" />
+  <label>Apps Script shared secret <small class="help">The same value you set as SHARED_SECRET in Script Properties.</small></label>
+  <input id="cfg-secret" type="password" autocomplete="off" />
+  <div class="row" style="margin-top:12px">
+    <button id="cfg-save">Save</button>
+    <button id="cfg-test" class="secondary">Test connection</button>
+    <button id="cfg-clear" class="ghost">Clear</button>
+  </div>
+  <div id="cfg-status"></div>
+</section>
+
+<section class="panel">
+  <h2>1. Capture screenshot</h2>
+  <div id="drop" class="drop">
+    <div id="drop-empty">
+      Tap to choose photo, or paste / drop an image here.
+      <br><small class="help">From your banking app, screenshot the transaction list, then upload.</small>
+    </div>
+    <img id="drop-preview" class="hidden" alt="preview" />
+  </div>
+  <input id="file" type="file" accept="image/*" class="hidden" />
+  <div class="row" style="margin-top:10px">
+    <button id="parse-btn" disabled>Parse with Gemini</button>
+    <button id="reset-btn" class="ghost">Reset</button>
+  </div>
+  <div id="parse-status"></div>
+</section>
+
+<section id="tx-section" class="panel hidden">
+  <h2>2. Pick transactions</h2>
+  <div id="tx-list"></div>
+</section>
+
+<section id="target-section" class="panel hidden">
+  <h2>3. Where to write</h2>
+  <label>Sheet tab</label>
+  <select id="sel-sheet"></select>
+  <label>Date</label>
+  <select id="sel-date"></select>
+  <label>Category column</label>
+  <select id="sel-col"></select>
+  <div class="summary" style="margin-top:12px">
+    <span id="sum-text">Select transactions to begin.</span>
+    <strong id="sum-amount">—</strong>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="submit-btn" disabled>Add to sheet</button>
+  </div>
+  <div id="submit-status"></div>
+</section>
+
+<script>
+'use strict';
+
+// ----- config in localStorage -----
+const CFG_KEY = 'expense-logger-config-v1';
+function loadCfg() {
+  try { return JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveCfg(cfg) { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+
+// ----- DOM helpers -----
+const $ = (id) => document.getElementById(id);
+function show(el) { el.classList.remove('hidden'); }
+function hide(el) { el.classList.add('hidden'); }
+function setStatus(el, kind, text) {
+  if (!text) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="status ${kind}">${text}</div>`;
+}
+function spinner(text) { return `<span class="spinner"></span>${text}`; }
+
+// ----- Apps Script client -----
+async function as(action, payload = {}) {
+  const cfg = loadCfg();
+  if (!cfg.url || !cfg.secret) throw new Error('Apps Script URL or secret missing — open settings.');
+  // text/plain content type avoids the CORS preflight that Apps Script can't answer.
+  const res = await fetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ token: cfg.secret, action, ...payload }),
+    redirect: 'follow',
+  });
+  if (!res.ok) throw new Error(`Apps Script HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Apps Script returned error');
+  return data;
+}
+
+// ----- Gemini client -----
+const GEMINI_MODEL = 'gemini-2.0-flash';
+const PARSE_PROMPT = `You are looking at a screenshot from a mobile banking or e-wallet app showing a list of transactions. Extract every distinct transaction visible.
+
+Return ONLY a JSON array, no prose. Each item:
+{
+  "datetime": "ISO 8601 if a year is visible, otherwise YYYY-MM-DD or just the time/date string as shown",
+  "merchant": "the payee or transaction description, in the original language",
+  "amount": <positive number, no thousand separators, no currency symbol>,
+  "type": "debit" or "credit"  // debit = money out, credit = money in
+}
+
+Rules:
+- Skip headers, balances, and summaries — only actual transactions.
+- If the same transaction shows multiple lines (e.g. fee + main amount), pick the principal amount.
+- If the screenshot is unclear or has no transactions, return [].`;
+
+async function fileToBase64(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+async function parseScreenshot(file) {
+  const cfg = loadCfg();
+  if (!cfg.gemini) throw new Error('Gemini API key missing — open settings.');
+  const base64 = await fileToBase64(file);
+  const body = {
+    contents: [{
+      parts: [
+        { text: PARSE_PROMPT },
+        { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } }
+      ]
+    }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0 }
+  };
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(cfg.gemini)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Gemini HTTP ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Gemini returned no text');
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch { throw new Error('Gemini did not return valid JSON: ' + text.slice(0, 200)); }
+  if (!Array.isArray(parsed)) throw new Error('Gemini did not return an array');
+  return parsed.filter(t => typeof t.amount === 'number' && t.amount > 0);
+}
+
+// ----- state -----
+let currentFile = null;
+let transactions = []; // [{datetime, merchant, amount, type, _selected}]
+let meta = null;       // { sheets: [{name, headers, dates, dateCol, headerRow}] }
+
+// ----- settings UI -----
+const settingsEl = $('settings');
+$('settings-toggle').onclick = () => {
+  settingsEl.classList.toggle('hidden');
+  if (!settingsEl.classList.contains('hidden')) hydrateSettings();
+};
+
+function hydrateSettings() {
+  const cfg = loadCfg();
+  $('cfg-gemini').value = cfg.gemini || '';
+  $('cfg-url').value = cfg.url || '';
+  $('cfg-secret').value = cfg.secret || '';
+}
+
+$('cfg-save').onclick = () => {
+  saveCfg({
+    gemini: $('cfg-gemini').value.trim(),
+    url: $('cfg-url').value.trim(),
+    secret: $('cfg-secret').value.trim(),
+  });
+  setStatus($('cfg-status'), 'ok', 'Saved on this device.');
+  loadMeta().catch(e => setStatus($('cfg-status'), 'err', e.message));
+};
+
+$('cfg-test').onclick = async () => {
+  setStatus($('cfg-status'), 'info', spinner('Testing…'));
+  try {
+    const data = await as('meta');
+    setStatus($('cfg-status'), 'ok', `Connected. Found ${data.sheets.length} sheet tab(s).`);
+  } catch (e) {
+    setStatus($('cfg-status'), 'err', e.message);
+  }
+};
+
+$('cfg-clear').onclick = () => {
+  if (!confirm('Clear saved keys from this device?')) return;
+  localStorage.removeItem(CFG_KEY);
+  hydrateSettings();
+  setStatus($('cfg-status'), 'info', 'Cleared.');
+};
+
+// ----- file picking -----
+const drop = $('drop');
+const fileInput = $('file');
+const preview = $('drop-preview');
+const dropEmpty = $('drop-empty');
+
+drop.onclick = () => fileInput.click();
+fileInput.onchange = (e) => { if (e.target.files[0]) loadFile(e.target.files[0]); };
+
+drop.addEventListener('dragover', (e) => { e.preventDefault(); });
+drop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+window.addEventListener('paste', (e) => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) loadFile(item.getAsFile());
+});
+
+function loadFile(file) {
+  currentFile = file;
+  drop.classList.add('has-image');
+  hide(dropEmpty);
+  show(preview);
+  preview.src = URL.createObjectURL(file);
+  $('parse-btn').disabled = false;
+  setStatus($('parse-status'), '', '');
+}
+
+$('reset-btn').onclick = () => {
+  currentFile = null;
+  transactions = [];
+  fileInput.value = '';
+  drop.classList.remove('has-image');
+  show(dropEmpty);
+  hide(preview);
+  preview.src = '';
+  $('parse-btn').disabled = true;
+  hide($('tx-section'));
+  hide($('target-section'));
+  setStatus($('parse-status'), '', '');
+  setStatus($('submit-status'), '', '');
+};
+
+// ----- parse -----
+$('parse-btn').onclick = async () => {
+  if (!currentFile) return;
+  $('parse-btn').disabled = true;
+  setStatus($('parse-status'), 'info', spinner('Asking Gemini to read the screenshot…'));
+  try {
+    transactions = await parseScreenshot(currentFile);
+    if (transactions.length === 0) {
+      setStatus($('parse-status'), 'err', 'No transactions detected. Try a clearer screenshot.');
+      return;
+    }
+    transactions.forEach(t => t._selected = false);
+    renderTransactions();
+    show($('tx-section'));
+    show($('target-section'));
+    setStatus($('parse-status'), 'ok', `Found ${transactions.length} transaction(s).`);
+    if (!meta) await loadMeta();
+  } catch (e) {
+    setStatus($('parse-status'), 'err', e.message);
+  } finally {
+    $('parse-btn').disabled = false;
+  }
+};
+
+function renderTransactions() {
+  const root = $('tx-list');
+  root.innerHTML = '';
+  transactions.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'tx' + (t._selected ? ' selected' : '');
+    row.innerHTML = `
+      <input type="checkbox" ${t._selected ? 'checked' : ''} />
+      <div class="tx-info">
+        <div class="tx-merchant"></div>
+        <div class="tx-meta"></div>
+      </div>
+      <div class="tx-amount ${t.type === 'credit' ? 'credit' : ''}">
+        ${t.type === 'credit' ? '+' : ''}${formatAmount(t.amount)}
+      </div>`;
+    row.querySelector('.tx-merchant').textContent = t.merchant || '(no description)';
+    row.querySelector('.tx-meta').textContent = [t.datetime, t.type].filter(Boolean).join(' · ');
+    row.onclick = () => {
+      t._selected = !t._selected;
+      renderTransactions();
+      updateSummary();
+    };
+    row.querySelector('input').onclick = (e) => e.stopPropagation();
+    root.appendChild(row);
+  });
+  updateSummary();
+}
+
+function formatAmount(n) {
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+// ----- meta + selectors -----
+async function loadMeta() {
+  const data = await as('meta');
+  meta = data;
+  populateSheetSelector();
+}
+
+function populateSheetSelector() {
+  const sel = $('sel-sheet');
+  sel.innerHTML = '';
+  meta.sheets.forEach((s, i) => {
+    if (!s.headers || s.headers.length === 0) return;
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
+  sel.onchange = () => { populateDateSelector(); populateColSelector(); };
+  populateDateSelector();
+  populateColSelector();
+}
+
+function currentSheet() {
+  if (!meta) return null;
+  const idx = parseInt($('sel-sheet').value, 10);
+  return isFinite(idx) ? meta.sheets[idx] : null;
+}
+
+function populateDateSelector() {
+  const s = currentSheet();
+  const sel = $('sel-date');
+  sel.innerHTML = '';
+  if (!s) return;
+  s.dates.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.row;
+    opt.textContent = d.display;
+    sel.appendChild(opt);
+  });
+  // pre-select today if present
+  const today = new Date();
+  const isoToday = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const match = s.dates.find(d => d.iso === isoToday);
+  if (match) sel.value = match.row;
+}
+
+function populateColSelector() {
+  const s = currentSheet();
+  const sel = $('sel-col');
+  sel.innerHTML = '';
+  if (!s) return;
+  s.headers.forEach((h, i) => {
+    if (!h) return;
+    if (i + 1 === s.dateCol) return; // skip date column
+    const opt = document.createElement('option');
+    opt.value = i + 1;
+    opt.textContent = h;
+    sel.appendChild(opt);
+  });
+}
+
+function updateSummary() {
+  const selected = transactions.filter(t => t._selected);
+  const total = selected.reduce((s, t) => s + t.amount, 0);
+  const text = $('sum-text');
+  const amount = $('sum-amount');
+  if (selected.length === 0) {
+    text.textContent = 'Select transactions to begin.';
+    amount.textContent = '—';
+    $('submit-btn').disabled = true;
+  } else if (selected.length === 1) {
+    text.textContent = '1 transaction selected';
+    amount.textContent = formatAmount(total);
+    $('submit-btn').disabled = false;
+  } else {
+    text.textContent = `${selected.length} transactions → =${selected.map(t => t.amount).join('+')}`;
+    amount.textContent = formatAmount(total);
+    $('submit-btn').disabled = false;
+  }
+}
+
+// ----- write -----
+$('submit-btn').onclick = async () => {
+  const s = currentSheet();
+  if (!s) return;
+  const row = parseInt($('sel-date').value, 10);
+  const col = parseInt($('sel-col').value, 10);
+  const selected = transactions.filter(t => t._selected);
+  if (!selected.length) return;
+
+  $('submit-btn').disabled = true;
+  setStatus($('submit-status'), 'info', spinner('Reading current cell…'));
+
+  try {
+    const { content: existing } = await as('read', { sheet: s.name, row, col });
+    const newAmounts = selected.map(t => t.amount);
+    const newContent = combine(existing, newAmounts);
+
+    setStatus($('submit-status'), 'info', spinner(`Writing ${newContent} …`));
+    await as('write', { sheet: s.name, row, col, content: newContent });
+
+    // mark written transactions as no longer selected, so user can pick more
+    selected.forEach(t => t._selected = false);
+    renderTransactions();
+    setStatus($('submit-status'), 'ok',
+      `Wrote <code>${escapeHtml(String(newContent))}</code> to ${escapeHtml(s.name)} · ${$('sel-col').selectedOptions[0].textContent} · ${$('sel-date').selectedOptions[0].textContent}.`);
+  } catch (e) {
+    setStatus($('submit-status'), 'err', e.message);
+  } finally {
+    $('submit-btn').disabled = false;
+  }
+};
+
+/**
+ * Combine existing cell content with new amounts.
+ *  - empty cell + 1 amount  → number
+ *  - empty cell + N amounts → "=a+b+c"
+ *  - existing formula       → "<existing>+a+b" (preserving leading "=")
+ *  - existing number        → "=<existing>+a+b"
+ */
+function combine(existing, newAmounts) {
+  const ex = String(existing || '').trim();
+  if (!ex) {
+    return newAmounts.length === 1 ? newAmounts[0] : '=' + newAmounts.join('+');
+  }
+  if (ex.startsWith('=')) {
+    return ex + '+' + newAmounts.join('+');
+  }
+  // existing is a plain value
+  if (!isNaN(parseFloat(ex))) {
+    return '=' + ex + '+' + newAmounts.join('+');
+  }
+  // unknown text — overwrite with new content
+  return newAmounts.length === 1 ? newAmounts[0] : '=' + newAmounts.join('+');
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ----- boot -----
+(function boot() {
+  const cfg = loadCfg();
+  if (!cfg.gemini || !cfg.url || !cfg.secret) {
+    show(settingsEl);
+    hydrateSettings();
+    setStatus($('cfg-status'), 'info', 'Add your three credentials to begin.');
+  } else {
+    loadMeta().catch(e => {
+      setStatus($('parse-status'), 'err', 'Could not load sheet info: ' + e.message);
+    });
+  }
+})();
+</script>
+</body>
+</html>
