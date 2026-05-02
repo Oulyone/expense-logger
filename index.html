@@ -50,7 +50,7 @@
   .add-more { aspect-ratio: 3 / 4; border-radius: 8px; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 28px; cursor: pointer; }
   .tx { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); margin-top: 8px; cursor: pointer; }
   .tx.selected { border-color: var(--accent); background: rgba(56,189,248,0.08); }
-  .tx input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .tx input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); pointer-events: none; }
   .tx-info { flex: 1; min-width: 0; }
   .tx-merchant { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tx-meta { font-size: 12px; color: var(--muted); }
@@ -405,9 +405,7 @@ function renderTransactions() {
     row.onclick = () => {
       t._selected = !t._selected;
       renderTransactions();
-      updateSummary();
     };
-    row.querySelector('input').onclick = (e) => e.stopPropagation();
     root.appendChild(row);
   });
   updateSummary();
