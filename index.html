@@ -103,7 +103,18 @@
   <input id="file" type="file" accept="image/*" multiple class="hidden" />
   <div class="row" style="margin-top:10px">
     <button id="parse-btn" disabled>Parse with Gemini</button>
+    <button id="manual-btn" class="secondary">+ Cash / manual</button>
     <button id="reset-btn" class="ghost">Reset</button>
+  </div>
+  <div id="manual-form" class="hidden" style="margin-top:10px; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--bg);">
+    <label>Amount</label>
+    <input id="manual-amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" />
+    <label>Note (optional)</label>
+    <input id="manual-note" type="text" placeholder="e.g. lunch with cash" />
+    <div class="row" style="margin-top:10px">
+      <button id="manual-add">Add</button>
+      <button id="manual-cancel" class="ghost">Cancel</button>
+    </div>
   </div>
   <div id="parse-status"></div>
 </section>
@@ -111,6 +122,9 @@
 <section id="tx-section" class="panel hidden">
   <h2>2. Pick transactions</h2>
   <div id="tx-list"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="add-another-btn" class="secondary">+ Add another manual</button>
+  </div>
 </section>
 
 <section id="target-section" class="panel hidden">
@@ -356,8 +370,50 @@ $('reset-btn').onclick = () => {
   $('parse-btn').disabled = true;
   hide($('tx-section'));
   hide($('target-section'));
+  hide($('manual-form'));
+  $('manual-amount').value = '';
+  $('manual-note').value = '';
   setStatus($('parse-status'), '', '');
   setStatus($('submit-status'), '', '');
+};
+
+// ----- manual entry -----
+function openManualForm() {
+  show($('manual-form'));
+  $('manual-amount').focus();
+}
+function closeManualForm() {
+  hide($('manual-form'));
+  $('manual-amount').value = '';
+  $('manual-note').value = '';
+}
+
+$('manual-btn').onclick = openManualForm;
+$('add-another-btn').onclick = openManualForm;
+$('manual-cancel').onclick = closeManualForm;
+
+$('manual-add').onclick = async () => {
+  const amount = parseFloat($('manual-amount').value);
+  if (!isFinite(amount) || amount <= 0) {
+    $('manual-amount').focus();
+    return;
+  }
+  const note = $('manual-note').value.trim() || 'cash';
+  transactions.push({
+    datetime: '',
+    merchant: note,
+    amount,
+    type: 'debit',
+    _selected: true,
+  });
+  closeManualForm();
+  renderTransactions();
+  show($('tx-section'));
+  show($('target-section'));
+  if (!meta) {
+    try { await loadMeta(); }
+    catch (e) { setStatus($('parse-status'), 'err', 'Could not load sheet info: ' + e.message); }
+  }
 };
 
 // ----- parse -----
